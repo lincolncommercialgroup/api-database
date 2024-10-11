@@ -1,22 +1,43 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
+const Joi = require('joi');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Database connection configuration
 const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'lincoln_db',
 };
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+// Validation schemas
+const bookingSchema = Joi.object({
+  user_id: Joi.number().integer().positive().required(),
+  service_id: Joi.number().integer().positive().required(),
+  booking_date: Joi.date().iso().required(),
+  start_time: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/).required(),
+  end_time: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/).required()
+});
+
+// Middleware for input validation
+const validateInput = (schema) => {
+  return (req, res, next) => {
+    const { error } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+    next();
+  };
+};
+
 // Create a new booking
-app.post('/api/bookings', async (req, res) => {
+app.post('/api/bookings', validateInput(bookingSchema), async (req, res) => {
   try {
     const { user_id, service_id, booking_date, start_time, end_time } = req.body;
     const connection = await mysql.createConnection(dbConfig);
@@ -48,31 +69,53 @@ app.get('/api/bookings', async (req, res) => {
 // Get available time slots for a specific date and service
 app.get('/api/availability/:date/:serviceId', async (req, res) => {
   try {
+    console.log('Availability request received:', req.params);
     const { date, serviceId } = req.params;
+    
+    // Validate input
+    const schema = Joi.object({
+      date: Joi.date().iso().required(),
+      serviceId: Joi.number().integer().positive().required()
+    });
+    const { error } = schema.validate({ date, serviceId });
+    if (error) {
+      console.log('Validation error:', error.details[0].message);
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    console.log('Connecting to database...');
     const connection = await mysql.createConnection(dbConfig);
     
+    console.log('Fetching service details...');
     // Get service details
-    const [serviceRows] = await connection.execute(
-      'SELECT * FROM services WHERE id = ?',
-      [serviceId]
-    );
+    const [serviceRows] = await connection.execute('SELECT * FROM services WHERE id = ?', [serviceId]);
+    if (serviceRows.length === 0) {
+      console.log('Service not found');
+      await connection.end();
+      return res.status(404).json({ error: 'Service not found' });
+    }
     const service = serviceRows[0];
 
-    // Get service availability
-    const [availabilityRows] = await connection.execute(
-      'SELECT * FROM service_availability WHERE service_id = ? AND day_of_week = DAYNAME(?)',
-      [serviceId, date]
-    );
-    
+    console.log('Fetching existing bookings...');
     // Get existing bookings for the date
     const [bookingsRows] = await connection.execute(
       'SELECT start_time, end_time FROM bookings WHERE service_id = ? AND booking_date = ?',
       [serviceId, date]
     );
 
+    console.log('Fetching service availability...');
+    // Get service availability
+    const [availabilityRows] = await connection.execute(
+      'SELECT * FROM service_availability WHERE service_id = ? AND day_of_week = DAYNAME(?)',
+      [serviceId, date]
+    );
+
     await connection.end();
 
+    console.log('Calculating available slots...');
+    // Calculate available slots
     const availableSlots = calculateAvailableSlots(service, availabilityRows[0], bookingsRows);
+    console.log('Available slots:', availableSlots);
     res.json(availableSlots);
   } catch (error) {
     console.error('Error fetching availability:', error);
@@ -129,6 +172,8 @@ function calculateAvailableSlots(service, availability, bookings) {
   return availableSlots;
 }
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+module.exports = { app, server };

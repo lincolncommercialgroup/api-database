@@ -17,19 +17,29 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
-    volumes:
-      - ./app:/usr/src/app
-      - /usr/src/app/node_modules
     ports:
       - "3000:3000"
     depends_on:
       - mysql
     environment:
-      - NODE_ENV=development
-      - DB_HOST=mysql
-      - DB_USER=lincoln_user
-      - DB_PASSWORD=eiagmkv6SDoK197
-      - DB_NAME=lincoln_db
+      DB_HOST: mysql
+      DB_USER: lincoln_user
+      DB_PASSWORD: eiagmkv6SDoK197
+      DB_NAME: lincoln_db
+    command: npm run dev
+
+  test:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    depends_on:
+      - mysql
+    environment:
+      DB_HOST: mysql
+      DB_USER: lincoln_user
+      DB_PASSWORD: eiagmkv6SDoK197
+      DB_NAME: lincoln_db
+    command: sh -c "/usr/wait-for-it.sh mysql:3306 -- npm test"
 
 volumes:
   mysql_data:
