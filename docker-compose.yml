@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ei1fpIoK197
+      MYSQL_DATABASE: lincoln_db
+      MYSQL_USER: lincoln_user
+      MYSQL_PASSWORD: eiagmkv6SDoK197
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  nodejs:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mysql
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=mysql
+      - DB_USER=lincoln_user
+      - DB_PASSWORD=eiagmkv6SDoK197
+      - DB_NAME=lincoln_db
+
+volumes:
+  mysql_data:
