@@ -1,7 +1,7 @@
 {
   "name": "lincoln-commercial-group-api",
   "version": "1.0.0",
-  "description": "RESTful API for Lincoln Commercial Group",
+  "description": "RESTful API for Lincoln Commercial Group LLC",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
