@@ -40,7 +40,20 @@ const validateInput = (schema) => {
 app.post('/api/bookings', validateInput(bookingSchema), async (req, res) => {
   try {
     const { user_id, service_id, booking_date, start_time, end_time } = req.body;
+    
     const connection = await mysql.createConnection(dbConfig);
+
+    // Check for overlapping bookings
+    const [overlappingBookings] = await connection.execute(
+      'SELECT * FROM bookings WHERE service_id = ? AND booking_date = ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))',
+      [service_id, booking_date, end_time, start_time, end_time, start_time, start_time, end_time]
+    );
+
+    if (overlappingBookings.length > 0) {
+      await connection.end();
+      return res.status(400).json({ error: 'This time slot overlaps with an existing booking' });
+    }
+
     const [result] = await connection.execute(
       'INSERT INTO bookings (user_id, service_id, booking_date, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
       [user_id, service_id, booking_date, start_time, end_time]
@@ -114,7 +127,7 @@ app.get('/api/availability/:date/:serviceId', async (req, res) => {
 
     console.log('Calculating available slots...');
     // Calculate available slots
-    const availableSlots = calculateAvailableSlots(service, availabilityRows[0], bookingsRows);
+    const availableSlots = calculateAvailableSlots(service, availabilityRows[0], bookingsRows, date);
     console.log('Available slots:', availableSlots);
     res.json(availableSlots);
   } catch (error) {
@@ -136,8 +149,18 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
-function calculateAvailableSlots(service, availability, bookings) {
+function calculateAvailableSlots(service, availability, bookings, date) {
+  console.log('Calculating slots for:', { service, availability, bookings, date });
+
   if (!availability) {
+    console.log('No availability found for this date');
+    return [];
+  }
+
+  // Check if the date is a holiday (e.g., Christmas)
+  const holidayDates = ['2023-12-25', '2024-12-25']; // Add more holiday dates as needed
+  if (holidayDates.includes(date)) {
+    console.log('Date is a holiday');
     return [];
   }
 
@@ -147,6 +170,8 @@ function calculateAvailableSlots(service, availability, bookings) {
 
   const startTime = new Date(`1970-01-01T${start_time}`);
   const endTime = new Date(`1970-01-01T${end_time}`);
+
+  console.log('Service hours:', { startTime: startTime.toTimeString(), endTime: endTime.toTimeString(), duration, buffer_time });
 
   const availableSlots = [];
   let currentSlot = new Date(startTime);
@@ -168,6 +193,8 @@ function calculateAvailableSlots(service, availability, bookings) {
 
     currentSlot = new Date(currentSlot.getTime() + totalSlotDuration * 60000);
   }
+
+  console.log('Calculated available slots:', availableSlots);
 
   return availableSlots;
 }

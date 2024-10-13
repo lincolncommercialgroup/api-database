@@ -4,12 +4,13 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ei1fpIoK197
-      MYSQL_DATABASE: lincoln_db
-      MYSQL_USER: lincoln_user
-      MYSQL_PASSWORD: eiagmkv6SDoK197
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
     ports:
       - "3306:3306"
 
@@ -23,9 +24,9 @@ services:
       - mysql
     environment:
       DB_HOST: mysql
-      DB_USER: lincoln_user
-      DB_PASSWORD: eiagmkv6SDoK197
-      DB_NAME: lincoln_db
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
     command: npm run dev
 
   test:
@@ -36,10 +37,10 @@ services:
       - mysql
     environment:
       DB_HOST: mysql
-      DB_USER: lincoln_user
-      DB_PASSWORD: eiagmkv6SDoK197
-      DB_NAME: lincoln_db
-    command: sh -c "/usr/wait-for-it.sh mysql:3306 -- npm test"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    command: sh -c "/usr/wait-for-it.sh mysql:3306 --timeout=30 -- npm test"
 
 volumes:
   mysql_data:
